@@ -1,0 +1,15 @@
+amap-truck 后端代理: http://127.0.0.1:18964
+demo 页面: http://127.0.0.1:18965
+Traceback (most recent call last):
+  File "/Users/echo/project/amap-truck-rev/scripts/truck_openapi.py", line 203, in <module>
+    srv = ThreadingHTTPServer(('127.0.0.1', 18964), Handler)
+  File "/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/socketserver.py", line 454, in __init__
+    self.server_bind()
+    ~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/http/server.py", line 122, in server_bind
+    socketserver.TCPServer.server_bind(self)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^
+  File "/opt/homebrew/Cellar/python@3.15/3.15.0/Frameworks/Python.framework/Versions/3.15/lib/python3.15/socketserver.py", line 475, in server_bind
+    self.socket.bind(self.server_address)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^
+OSError: [Errno 48] Address already in use
