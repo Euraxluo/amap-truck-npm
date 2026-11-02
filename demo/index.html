@@ -19,8 +19,11 @@ body{font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaH
 button{font:inherit;cursor:pointer;border:none;background:none}
 input{font:inherit;color:var(--ink)}
 
-#themap{position:absolute;inset:0;z-index:0}
-#themap .amap-container{background:#e8f0f8}
+#themap{position:absolute;inset:0;z-index:0;background:#e8f0f8;overflow:hidden;cursor:grab}
+#themap:active{cursor:grabbing}
+#tilecanvas{position:absolute;inset:0}
+#tilecanvas img{user-select:none;-webkit-user-drag:none;pointer-events:none}
+#ovl{position:absolute;inset:0;pointer-events:none}
 
 /* ---- 顶部通栏 ---- */
 #topbar{position:absolute;top:0;left:0;right:0;height:52px;z-index:2000;display:flex;align-items:center;padding:0 16px;gap:12px;background:rgba(255,255,255,.96);box-shadow:0 1px 4px rgba(0,0,0,.08)}
@@ -137,7 +140,10 @@ input{font:inherit;color:var(--ink)}
 </head>
 <body>
 
-<div id="themap"></div>
+<script>
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+<div id="themap"><div id="tilecanvas"></div><svg id="ovl" xmlns="http://www.w3.org/2000/svg"></svg></div>
 
 <div id="topbar">
   <div class="brand"><div class="mk">货</div>高德<em>货车导航</em><span style="font-size:11px;color:#98a6b8;font-weight:400">amap-truck-nav</span></div>
@@ -218,7 +224,6 @@ input{font:inherit;color:var(--ink)}
 <div id="copyright">amap-truck-nav demo · 高德APP货车导航通道(私有接口逆向, 仅供研究) · GCJ-02</div>
 <div id="toast"></div>
 
-<script src="https://webapi.amap.com/maps?v=2.0&key=2f282f369e388ef01bae260cbc35edce"></script>
 <script type="module">
 import { truckRoute, camerasOf } from '../src/index.js';
 import { setServer } from '../src/api.js';
@@ -227,78 +232,122 @@ const $ = (id) => document.getElementById(id);
 const codebox = $('codebox');
 const toast = (m) => { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2400); };
 
-/* ---- 高德地图 (JS API 2.0) ---- */
-const map = new AMap.Map('themap', {
-  viewMode: '2D', zoom: 5.4, center: [118.5, 33.5],
-  mapStyle: 'amap://styles/normal',
-});
-let routeOverlays = [];       // 当前路线
-let camMarkers = [];          // 电子眼
-let camVisible = true;
-const fitRoute = (pts) => map.setBounds(new AMap.Bounds([pts[0], pts[1]], [pts[2], pts[3]]));
+/* ---- 自绘瓦片地图 (纯同源 /_amaptile, 无外网依赖) ---- */
+const TILE = 256;
+const map = (() => {
+  const el = document.getElementById('tilecanvas');
+  const st = { zoom: 5, cx: 118.5, cy: 33.5, origin: [0, 0], W: 0, H: 0 };
+  const px = (lng, lat) => {
+    const n = 2 ** st.zoom;
+    const xt = (lng + 180) / 360 * n;
+    const yt = (1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * n;
+    return [xt * TILE, yt * TILE];
+  };
+  const toScreen = (lng, lat) => { const [wx, wy] = px(lng, lat); return [wx - st.origin[0], wy - st.origin[1]]; };
+  let overlays = { segs: [], cams: [], pts: [], via: [] };
+  const drawOvl = () => {
+    const svg = document.getElementById('ovl');
+    if (!st.W) return;
+    svg.setAttribute('viewBox', `0 0 ${st.W} ${st.H}`);
+    svg.setAttribute('width', st.W); svg.setAttribute('height', st.H);
+    let h = '';
+    for (const seg of overlays.segs) {
+      const d = seg.map((p, i) => (i ? 'L' : 'M') + toScreen(p[0], p[1]).map(v => v.toFixed(1)).join(',')).join('');
+      h += `<path d="${d}" fill="none" stroke="#fff" stroke-width="8" stroke-linejoin="round" stroke-linecap="round" opacity=".9"/>`;
+      h += `<path d="${d}" fill="none" stroke="#0f89f5" stroke-width="5.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    }
+    if (st.zoom >= 8) for (const c of overlays.cams) {
+      const [x, y] = toScreen(c[0], c[1]);
+      h += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="#ff9f1c" stroke="#fff" stroke-width="1.5"/>`;
+    }
+    const pin = (p, color) => {
+      const [x, y] = toScreen(p[0], p[1]);
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7" fill="${color}" stroke="#fff" stroke-width="3"/>`;
+    };
+    if (overlays.pts.length >= 2) { h += pin(overlays.pts[0], '#38a83a'); h += pin(overlays.pts[1], '#e05252'); }
+    for (const v of overlays.via) h += pin(v, '#0f89f5');
+    svg.innerHTML = h;
+  };
+  const render = () => {
+    const W = innerWidth, H = innerHeight;
+    const [cxp, cyp] = px(st.cx, st.cy);
+    st.origin = [cxp - W / 2, cyp - H / 2]; st.W = W; st.H = H;
+    const x0 = Math.floor(st.origin[0] / TILE), x1 = Math.floor((st.origin[0] + W) / TILE);
+    const y0 = Math.floor(st.origin[1] / TILE), y1 = Math.floor((st.origin[1] + H) / TILE);
+    let html = '';
+    for (let ty = y0; ty <= y1; ty++) for (let tx = x0; tx <= x1; tx++) {
+      if (ty < 0 || ty >= 2 ** st.zoom) continue;
+      html += `<img draggable="false" src="/_amaptile/${st.zoom}/${tx}/${ty}" style="position:absolute;left:${tx * TILE - st.origin[0]}px;top:${ty * TILE - st.origin[1]}px;width:${TILE}px;height:${TILE}px" onerror="this.style.visibility='hidden'">`;
+    }
+    el.innerHTML = html;
+    drawOvl();
+  };
+  const setOverlays = (o) => { overlays = o; drawOvl(); };
+  const fit = (pts) => {
+    const lngs = pts.map(p => p[0]), lats = pts.map(p => p[1]);
+    const bbox = [Math.min(...lngs), Math.min(...lats), Math.max(...lngs), Math.max(...lats)];
+    let z = 10;
+    for (; z >= 4; z--) {
+      st.zoom = z;
+      const a = px(bbox[0], bbox[3]), b = px(bbox[2], bbox[1]);
+      if (b[0] - a[0] < innerWidth * .8 && a[1] - b[1] < innerHeight * .8) break;
+    }
+    st.zoom = z;
+    st.cx = (bbox[0] + bbox[2]) / 2; st.cy = (bbox[1] + bbox[3]) / 2;
+    render();
+  };
+  let drag = null;
+  addEventListener('mousedown', e => { drag = { x: e.clientX, y: e.clientY, origin: [...st.origin] }; });
+  addEventListener('mousemove', e => {
+    if (!drag) return;
+    const dx = (e.clientX - drag.x), dy = (e.clientY - drag.y);
+    const n = 2 ** st.zoom;
+    const xt = (drag.origin[0] + innerWidth / 2 - dx) / TILE;
+    const yt = (drag.origin[1] + innerHeight / 2 - dy) / TILE;
+    st.cx = xt / n * 360 - 180;
+    const ycy = Math.PI * (1 - 2 * yt / n);
+    if (ycy > -1.55 && ycy < 1.55) st.cy = Math.atan(Math.sinh(ycy)) * 180 / Math.PI;
+    render();
+  });
+  addEventListener('mouseup', () => drag = null);
+  addEventListener('wheel', e => {
+    e.preventDefault();
+    const old = st.zoom;
+    st.zoom = Math.max(4, Math.min(18, st.zoom + (e.deltaY < 0 ? 1 : -1)));
+    if (st.zoom !== old) render();
+  }, { passive: false });
+  render();
+  return { getZoom: () => st.zoom, setOverlays, fit, st, render };
+})();
 window.__map = map;
 
 function drawRoute(resp, planIdx) {
-  // 清旧
-  routeOverlays.forEach(o => map.remove(o)); routeOverlays = [];
-  camMarkers.forEach(m => map.remove(m)); camMarkers = [];
-
-  // 1. 起终点 + 途经点 marker
-  const paths = resp.data.route.paths;
   const o = resp.data.route.origin.split(',').map(Number);
   const d = resp.data.route.destination.split(',').map(Number);
-  const from = new AMap.Marker({ position: o, content: '<div style="width:14px;height:14px;border-radius:50%;background:#38a83a;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>', anchor:'center', zIndex:120 });
-  const to = new AMap.Marker({ position: d, content: '<div style="width:14px;height:14px;border-radius:50%;background:#e05252;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>', anchor:'center', zIndex:120 });
-  map.add([from, to]); routeOverlays.push(from, to);
-
-  // 2. 电子眼坐标 → 路线轨迹 (相邻>30km 视为服务区跳变, 截断分段)
   const cams = camerasOf(resp);
   const pts = cams.map(c => [c.lng, c.lat]);
-  const segs = [];
-  let cur = [];
+  // 相邻>30km 视为跳变, 截断分段
+  const segs = []; let cur = [];
+  const distM = (a, b) => { const R = 6371000, r = d2r => d2r * Math.PI / 180;
+    const dLat = r(b[1] - a[1]), dLng = r(b[0] - a[0]) * Math.cos(r((a[1] + b[1]) / 2));
+    return Math.hypot(dLat, dLng) * R; };
   for (let i = 0; i < pts.length; i++) {
-    if (cur.length && AMap.GeometryUtil.distance(cur[cur.length - 1], pts[i]) > 30000) { segs.push(cur); cur = []; }
+    if (cur.length && distM(cur[cur.length - 1], pts[i]) > 30000) { segs.push(cur); cur = []; }
     cur.push(pts[i]);
   }
   if (cur.length) segs.push(cur);
 
-  const active = segs.map(seg => new AMap.Polyline({
-    path: seg, strokeColor: '#0f89f5', strokeWeight: 7, strokeOpacity: .95,
-    lineJoin: 'round', lineCap: 'round', showDir: true, zIndex: 50,
-  }));
-  const halo = segs.map(seg => new AMap.Polyline({
-    path: seg, strokeColor: '#ffffff', strokeWeight: 11, strokeOpacity: .9,
-    lineJoin: 'round', lineCap: 'round', zIndex: 49,
-  }));
-  map.add([...halo, ...active]);
-  routeOverlays.push(...halo, ...active);
-
-  // 3. 电子眼打点 (小相机 icon, 默认开)
-  cams.forEach(c => {
-    const m = new AMap.Marker({
-      position: [c.lng, c.lat],
-      content: `<div style="width:8px;height:8px;border-radius:50%;background:#ff9f1c;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.3)"></div>`,
-      anchor: 'center', zIndex: 60, zooms: [8, 20],
-    });
-    camMarkers.push(m);
-  });
-  if (camVisible) map.add(camMarkers);
-
-  // 4. 视野适配 (含起终点)
-  const all = [o, d, ...pts];
-  const lngs = all.map(p => p[0]), lats = all.map(p => p[1]);
-  map.setBounds(new AMap.Bounds(
-    [Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]), false, [60, 60, 60, 60]);
-
-  toast(`路线已绘制: ${segs.length} 段 · ${camMarkers.length} 电子眼`);
+  map.setOverlays({ segs, cams: pts, pts: [o, d], via: [] });
+  map.fit([o, d, ...pts]);
+  toast(`路线已绘制: ${segs.length} 段 · ${pts.length} 电子眼`);
 }
 window.__draw = drawRoute;
 
 $('btnCam').onclick = () => {
-  camVisible = !camVisible;
-  $('btnCam').classList.toggle('on', camVisible);
-  camMarkers.forEach(m => camVisible ? map.add(m) : map.remove(m));
+  camZoomOn = !camZoomOn;
+  $('btnCam').classList.toggle('on', camZoomOn);
 };
+let camZoomOn = true;
 
 /* ---- 表单 (同前) ---- */
 const STRATS = [[11,'高德推荐'],[1,'躲拥堵'],[3,'避收费'],[8,'高速优先'],[13,'距离优先'],[2,'不走高速'],[4,'躲堵+不走高速'],[5,'避费+不走高速'],[6,'躲堵+避费'],[7,'全避'],[9,'躲堵+高速'],[10,'无路况速度'],[12,'无路况不走高速']];
