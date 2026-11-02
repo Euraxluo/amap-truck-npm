@@ -90,6 +90,7 @@ export async function truckRoute(opts) {
   for (const k of ['height', 'width', 'load', 'weight', 'axis', 'province', 'number']) {
     if (opts[k] !== undefined) q[k] = opts[k];
   }
+  // 无需 key: 通道鉴权在后端代理内完成
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), config.timeout);
   try {

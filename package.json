@@ -1,7 +1,7 @@
 {
   "name": "amap-truck-nav",
   "version": "0.1.0",
-  "description": "高德APP货车导航私有通道的前端渲染层 — 路线规划/车型档位/多途经点/13种策略, 官方v4 OpenAPI兼容响应",
+  "description": "高德APP货车导航通道的前端渲染层 — HTML/React/Vue 三端, 路线规划/车型档位/多途经点/13种策略, 响应只含通道真实字段",
   "type": "module",
   "main": "./src/index.js",
   "module": "./src/index.js",
@@ -9,19 +9,35 @@
     ".": "./src/index.js",
     "./api": "./src/api.js",
     "./components": "./src/components.js",
-    "./react": "./src/react.js"
+    "./react": "./src/react.js",
+    "./vue": "./src/vue.js"
   },
-  "files": ["src", "README.md", "LICENSE"],
+  "files": [
+    "src",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "demo": "node demo/server.mjs",
     "test": "node test/index.test.mjs"
   },
-  "keywords": ["amap", "truck", "navigation", "route", "高德", "货车", "导航", "路径规划"],
+  "keywords": [
+    "amap",
+    "truck",
+    "navigation",
+    "route",
+    "高德",
+    "货车",
+    "导航",
+    "路径规划"
+  ],
   "license": "MIT",
   "peerDependencies": {
     "react": ">=16.8"
   },
   "peerDependenciesMeta": {
-    "react": { "optional": true }
+    "react": {
+      "optional": true
+    }
   }
 }

@@ -13,8 +13,8 @@
 - 📏 国标车型档位：`1`微型 `2`轻型 `3`中型 `4`重型 + 精确车长/宽/高/载重/轴数
 - 📍 多途经点：最多 16 个，全部生效
 - 🧭 13 种策略：躲避拥堵/避免收费/高速优先/距离优先/不走高速…（官方枚举）
-- 🎨 框架无关渲染组件：纯 DOM，React/Vue/原生 HTML 皆可挂载
-- ✅ 响应仅包含通道真实返回的字段，无占位假数据
+- 🎨 三端渲染：原生 HTML / React / Vue 3 组合式 API
+- ✅ 响应只含通道真实返回的字段（距离/耗时/过路费/分步转向/电子眼），无 key、无假数据
 
 ## 安装
 
@@ -76,6 +76,26 @@ function App() {
 }
 ```
 
+### Vue 3
+
+```js
+import { setVue, createTruckRoute } from 'amap-truck-nav/vue';
+import { ref, onMounted } from 'vue';
+setVue(Vue); // 或 import 的 Vue
+
+const truck = createTruckRoute();
+
+// 组件里:
+setup() {
+  const { data, loading, error } = truck.use(
+    { origin: [116.481, 39.989], destination: [121.499, 31.239], size: 4 },
+    []
+  );
+  return { data, loading, error };
+}
+// 模板: <div v-if="data">{{ data.distance }}m / {{ data.duration }}s</div>
+```
+
 ### Node（无渲染）
 
 ```js
@@ -96,6 +116,7 @@ const resp = await truckRoute({ origin: [116.481, 39.989], destination: [121.499
 | `injectStyles()` | 注入默认样式（可不用，自己写 CSS） |
 | `STRATEGY` / `SIZE` | 策略/车型枚举常量 |
 | `setReact(R)` + `createTruckRouteHook()` | React hook 工厂 |
+| `setVue(V)` + `createTruckRoute()` | Vue 3 组合式容器 (导入路径 `amap-truck-nav/vue`) |
 
 `truckRoute` 参数：`origin`、`destination`（`[lng,lat]`，GCJ-02）、`waypoints`、`size`、`strategy`、
 `height`、`width`、`load`（总重 t）、`weight`（核定载重 t）、`axis`、`province`、`number`。
@@ -108,10 +129,17 @@ npm run demo   # http://127.0.0.1:18965 (自动拉起 18964 后端)
 
 ## 响应数据说明（诚实边界）
 
-通道真实返回：`distance`、`duration`、`tolls`、多路径、分步 `instruction/road/distance`、
-电子眼坐标。**不返回**：路线 polyline 坐标串、分段路况 tmcs、限行明细 restriction——
-这些字段不存在于本包响应中。需要画线请叠加高德 JS API 显示层（`@amap/amap-jsapi-loader`），
-电子眼点位可直接打点。
+通道真实返回（本包响应的全部字段）：
+
+```jsonc
+{ "errcode": 0, "errmsg": "OK", "data": { "count": 1, "route": { "origin": "...", "destination": "...",
+  "paths": [{ "distance": 13710, "duration": 1500, "tolls": 43,
+    "steps": [{ "instruction": "沿…向西南行驶41米右转", "road": "无名道路", "distance": 41,
+      "cameras": [{ "x": "116.7647", "y": "39.9895", "type": "3", "speed": "0" }] }] }] } } }
+```
+
+**不返回**（通道不存在，本包绝不编造）：polyline 路线坐标串、分段路况 tmcs、
+限行明细 restriction、toll_distance、action/orientation。需要画线叠加高德 JS API 显示层，电子眼可直接打点。
 
 ## License
 
