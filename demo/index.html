@@ -5,29 +5,25 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>高德地图 - 货车导航</title>
 <style>
-/* ============ amap.com/dir 布局: 全屏地图 + 浮动面板 ============ */
+/* ============ amap.com/dir 同款: 全屏高德地图 + 浮动面板 ============ */
 :root{
-  --amap-blue:#0f89f5;        /* 官方主蓝 (内嵌CSS实测) */
-  --amap-blue-d:#0c6ec4;
-  --panel-blue:#21518b;       /* 截图实测路线面板蓝 */
-  --panel-blue-2:#1d4a81;
+  --amap-blue:#0f89f5; --amap-blue-d:#0c6ec4;
+  --panel-blue:#21518b; --panel-blue-2:#1d4a81;
   --ink:#333; --ink-2:#5f6477; --ink-3:#8c989f;
   --line:#e8e8e8; --line-2:#cbcccd;
-  --ok:#6ccfaf; --warn:#ff9f1c;
-  --shadow:0 2px 2px rgba(0,0,0,.15);
+  --warn:#ff9f1c;
 }
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
-body{font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink);background:#e8f0f8}
+body{font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;color:var(--ink)}
 button{font:inherit;cursor:pointer;border:none;background:none}
-input,select{font:inherit;color:var(--ink)}
+input{font:inherit;color:var(--ink)}
 
-/* ---- 底图 (地图占位: 浅蓝水系+路网 SVG) ---- */
-#themap{position:absolute;inset:0;z-index:0;background:linear-gradient(160deg,#dcebf7 0%,#cfe2f2 40%,#d8e9f5 100%)}
-#themap svg{width:100%;height:100%;display:block}
+#themap{position:absolute;inset:0;z-index:0}
+#themap .amap-container{background:#e8f0f8}
 
-/* ---- 顶部通栏 (官网顶栏: 搜索+工具) ---- */
-#topbar{position:absolute;top:0;left:0;right:0;height:52px;z-index:2000;display:flex;align-items:center;padding:0 16px;gap:12px;background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(255,255,255,.9));box-shadow:0 1px 4px rgba(0,0,0,.08)}
+/* ---- 顶部通栏 ---- */
+#topbar{position:absolute;top:0;left:0;right:0;height:52px;z-index:2000;display:flex;align-items:center;padding:0 16px;gap:12px;background:rgba(255,255,255,.96);box-shadow:0 1px 4px rgba(0,0,0,.08)}
 #topbar .brand{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:700;color:#222}
 #topbar .brand .mk{width:28px;height:28px;border-radius:50%;background:var(--amap-blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800}
 #topbar .brand em{font-style:normal;color:var(--amap-blue)}
@@ -35,23 +31,21 @@ input,select{font:inherit;color:var(--ink)}
 #topbar .tools button{padding:6px 14px;border-radius:3px;color:var(--ink-2);font-size:13px}
 #topbar .tools button:hover{background:#f0f7ff;color:var(--amap-blue)}
 #topbar .tools button.on{color:var(--amap-blue);font-weight:600;background:#e8f4ff}
-#topbar .user{width:30px;height:30px;border-radius:50%;background:#dfe7f0;color:var(--ink-2);font-size:14px;display:flex;align-items:center;justify-content:center;margin-left:6px}
 
-/* ---- 左上路线面板 (还原 dirbox) ---- */
+/* ---- 左上路线面板 ---- */
 #dirbox{position:absolute;left:16px;top:68px;width:360px;z-index:2200;filter:drop-shadow(0 4px 14px rgba(9,30,60,.35))}
 .dpanel{background:var(--panel-blue);border-radius:4px;overflow:hidden}
 .dhead{display:flex;align-items:center;padding:10px 14px 4px;gap:4px}
 .dhead .modes{display:flex;gap:2px}
 .dhead .mode{padding:7px 14px;border-radius:14px 14px 0 0;color:#bcd4ef;font-size:13px}
 .dhead .mode.on{background:#fff;color:var(--panel-blue);font-weight:700}
-.dhead .mode:hover:not(.on){background:rgba(255,255,255,.12)}
 .dhead .close{margin-left:auto;color:#9db9d8;font-size:16px;padding:4px 8px}
 .dhead .close:hover{color:#fff}
 
-.dbody{background:#fff;padding:12px 14px}
-.irow{display:flex;align-items:center;gap:8px;margin-bottom:2px}
-.irow .swap{display:flex;flex-direction:column;gap:3px;color:#9bb7d6;font-size:11px;line-height:1}
-.irow .dot-end{display:flex;flex-direction:column;align-items:center;gap:14px;padding:12px 0 14px}
+.dbody{background:#fff;padding:12px 14px;max-height:calc(100vh - 260px);overflow:auto}
+.irow{display:flex;gap:8px}
+.irow .swap{display:flex;flex-direction:column;gap:3px;color:#9bb7d6;font-size:11px;line-height:1;padding:12px 0}
+.irow .dots{display:flex;flex-direction:column;align-items:center;gap:14px;padding:12px 0 14px}
 .irow .dot{width:9px;height:9px;border-radius:50%;border:2px solid #fff;box-shadow:0 0 0 1.5px #9bb7d6;background:#fff}
 .irow .dot.from{background:#8ce08c}
 .irow .dot.to{background:#ff7a7a}
@@ -60,27 +54,23 @@ input,select{font:inherit;color:var(--ink)}
 .ipt+.ipt{border-top:1px solid #e6eaef}
 .ipt .tag{flex:none;font-size:12px;color:#fff;border-radius:2px;padding:1px 5px}
 .ipt .tag.f{background:#38a83a}.ipt .tag.t{background:#e05252}
-.ipt input{flex:1;border:none;background:none;outline:none;font-size:13.5px;color:var(--ink)}
+.ipt input{flex:1;border:none;background:none;outline:none;font-size:13.5px}
 .ipt input::placeholder{color:#aab4bf}
-.ipt .pick{color:#b8c3ce;font-size:15px}
 
-/* 车型档位 (横向4档) */
 .truckrow{display:flex;gap:6px;margin:10px 0 4px}
 .tcard{flex:1;border:1px solid var(--line-2);border-radius:4px;text-align:center;padding:6px 2px 5px;background:#fff;transition:.12s}
 .tcard:hover{border-color:var(--amap-blue)}
 .tcard.on{border:1.5px solid var(--amap-blue);background:#eef7ff;box-shadow:0 0 0 2px rgba(15,137,245,.12)}
 .tcard .ic{font-size:17px;line-height:1.2}
-.tcard b{display:block;font-size:12px;color:var(--ink)}
+.tcard b{display:block;font-size:12px}
 .tcard i{font-style:normal;display:block;font-size:10px;color:var(--ink-3);line-height:1.3}
 .tcard.on b{color:var(--amap-blue)}
 
-/* 策略 chips */
 .stratrow{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 2px}
 .schip{border:1px solid var(--line-2);border-radius:13px;padding:3px 11px;font-size:12px;color:var(--ink-2);background:#fff}
 .schip:hover{border-color:var(--amap-blue);color:var(--amap-blue)}
 .schip.on{background:var(--amap-blue);border-color:var(--amap-blue);color:#fff;font-weight:600}
 
-/* 更多参数折叠 */
 .more-toggle{color:var(--amap-blue);font-size:12.5px;padding:6px 0;display:flex;align-items:center;gap:4px}
 .more-toggle:hover{text-decoration:underline}
 .more{display:none;padding:8px 10px;background:#f7f9fb;border-radius:4px;margin:4px 0 8px}
@@ -98,20 +88,18 @@ input,select{font:inherit;color:var(--ink)}
 .via-add:hover{text-decoration:underline}
 .via-n{font-size:11px;color:var(--ink-3)}
 
-/* 搜索按钮 */
 .gobtn{width:100%;height:42px;margin-top:6px;background:var(--amap-blue);color:#fff;border-radius:4px;font-size:15px;font-weight:700;letter-spacing:4px;box-shadow:0 3px 8px rgba(15,137,245,.3)}
 .gobtn:hover{background:var(--amap-blue-d)}
 .gobtn[disabled]{opacity:.6;cursor:wait}
 
-/* ---- 方案面板 (还原 plan-list-c, 搜索后替换输入区展示) ---- */
-.planlist{background:#fff;border-radius:0 0 4px 4px;max-height:calc(100vh - 210px);overflow:auto}
+/* ---- 方案列表 ---- */
+.planlist{background:#fff;border-radius:0 0 4px 4px;max-height:calc(100vh - 260px);overflow:auto;display:none}
 .plan-h{display:flex;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);background:#f7fafd;position:sticky;top:0}
 .plan-h b{font-size:13.5px}
 .plan-h .back{margin-left:auto;color:var(--amap-blue);font-size:12.5px}
-.plan-h .back:hover{text-decoration:underline}
-.plansum{display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
-.psum{flex:1;min-width:70px;text-align:center;padding:6px 4px;background:#f4f9ff;border-radius:4px}
-.psum .v{font-size:16px;font-weight:800;color:var(--panel-blue)}
+.plansum{display:flex;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
+.psum{flex:1;text-align:center;padding:6px 4px;background:#f4f9ff;border-radius:4px}
+.psum .v{font-size:15px;font-weight:800;color:var(--panel-blue)}
 .psum .v small{font-size:10px;font-weight:400;color:var(--ink-3)}
 .psum .k{font-size:11px;color:var(--ink-3)}
 .plan{border-bottom:1px solid var(--line);padding:10px 14px;cursor:pointer;transition:.12s}
@@ -120,12 +108,10 @@ input,select{font:inherit;color:var(--ink)}
 .plan .tt{display:flex;align-items:baseline;gap:8px}
 .plan .tt .n{font-size:12px;color:#fff;background:var(--amap-blue);border-radius:3px;padding:1px 7px}
 .plan.on .tt .n{background:var(--panel-blue)}
-.plan .tt .d{font-size:15px;font-weight:700;color:var(--ink)}
+.plan .tt .d{font-size:15px;font-weight:700}
 .plan .tt .t{font-size:12.5px;color:var(--ink-2)}
 .plan .tt .fee{margin-left:auto;font-size:12.5px;color:#e08a00}
-.plan .meta{font-size:12px;color:var(--ink-3);margin-top:3px;display:flex;gap:10px}
-.plan .lights{color:#bbb}
-/* 明细 */
+.plan .meta{font-size:12px;color:var(--ink-3);margin-top:3px}
 .detail{display:none;border-top:1px dashed var(--line-2);margin-top:8px}
 .plan.on .detail{display:block}
 .dstep{display:flex;gap:10px;padding:7px 2px;border-bottom:1px solid #f3f6f9;font-size:12.5px}
@@ -134,117 +120,57 @@ input,select{font:inherit;color:var(--ink)}
 .dstep .rd{color:var(--ink-3)}
 .dstep .cam{color:var(--warn);font-size:11.5px}
 
-/* ---- 右下角地图控件 (还原 maptoolbox) ---- */
-#mapctrl{position:absolute;right:16px;bottom:32px;z-index:1500;display:flex;flex-direction:column;gap:1px}
-#mapctrl button{width:36px;height:36px;background:#fff;color:#5a6572;font-size:17px;box-shadow:var(--shadow);display:flex;align-items:center;justify-content:center}
-#mapctrl button:first-child{border-radius:3px 3px 0 0}
-#mapctrl button:last-child{border-radius:0 0 3px 3px}
-#mapctrl button:hover{color:var(--amap-blue)}
-#scale{position:absolute;left:12px;bottom:14px;z-index:1500;font-size:11px;color:#5a6572;background:rgba(255,255,255,.8);padding:2px 8px;border-radius:2px}
-#copyright{position:absolute;left:0;right:0;bottom:0;z-index:1400;font-size:10.5px;color:#7d8894}#copyright{color:#7d8894;text-align:center;background:rgba(255,255,255,.65);padding:2px 0}
-
-/* 移动端二维码占位 (还原 dir_qr) */
-#dirqr{position:absolute;right:16px;top:68px;z-index:2100;background:#fff;border-radius:4px;box-shadow:var(--shadow);padding:12px;width:120px;text-align:center;display:none}
-#dirqr.show{display:block}
-#dirqr .t{font-size:12.5px;font-weight:700;margin-bottom:6px}
-#dirqr .qr{width:96px;height:96px;margin:0 auto;background:
-  repeating-conic-gradient(#222 0 25%,#fff 0 50%) 0 0/16px 16px;border:4px solid #222;border-radius:2px}
-#dirqr .s{font-size:11px;color:var(--ink-3);margin-top:6px}
-
-/* toast */
-#toast{position:fixed;top:64px;left:50%;transform:translateX(-50%) translateY(-14px);background:rgba(20,40,70,.92);color:#fff;padding:9px 22px;border-radius:20px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:3000}
-#toast.show{opacity:1;transform:translateX(-50%)}
-
 /* 代码抽屉 */
-#codebox{position:absolute;left:16px;bottom:34px;z-index:1600;background:#0a1830;border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.3);width:520px;max-width:calc(100vw - 32px);overflow:hidden}
+#codebox{position:absolute;left:16px;bottom:34px;z-index:1600;background:#0a1830;border-radius:6px;box-shadow:0 6px 24px rgba(0,0,0,.3);width:540px;max-width:calc(100vw - 32px);overflow:hidden;display:none}
+#codebox.show{display:block}
 #codebox .ch{display:flex;align-items:center;padding:8px 12px;gap:2px}
 #codebox .ch button{color:#7d94b8;font-size:12px;padding:5px 12px;border-radius:4px}
 #codebox .ch button.on{color:#fff;background:rgba(255,255,255,.12);font-weight:600}
 #codebox .ch .x{margin-left:auto;color:#7d94b8;font-size:15px;padding:2px 8px}
-#codebox pre{margin:0;padding:10px 14px 14px;color:#d6e2f0;font:11.5px/1.7 ui-monospace,Menlo,monospace;overflow:auto;max-height:220px}
+#codebox pre{margin:0;padding:10px 14px 14px;color:#d6e2f0;font:11.5px/1.7 ui-monospace,Menlo,monospace;overflow:auto;max-height:200px}
 #codebox .c{color:#5d7290}#codebox .s{color:#8ce99a}#codebox .k{color:#74c0fc}#codebox .n{color:#ffc078}
-#codebox{display:none}#codebox.show{display:block}
+
+#copyright{position:absolute;left:0;right:0;bottom:0;z-index:1400;font-size:10.5px;color:#7d8894;text-align:center;background:rgba(255,255,255,.65);padding:2px 0;pointer-events:none}
+#toast{position:fixed;top:64px;left:50%;transform:translateX(-50%) translateY(-14px);background:rgba(20,40,70,.92);color:#fff;padding:9px 22px;border-radius:20px;font-size:13px;opacity:0;pointer-events:none;transition:.25s;z-index:3000}
+#toast.show{opacity:1;transform:translateX(-50%)}
 </style>
 </head>
 <body>
 
-<!-- 地图底图 -->
-<div id="themap"><svg xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMid slice">
-  <defs>
-    <pattern id="grid" width="46" height="46" patternUnits="userSpaceOnUse">
-      <path d="M46 0H0V46" fill="none" stroke="#c9dcee" stroke-width=".6"/>
-    </pattern>
-  </defs>
-  <rect width="100%" height="100%" fill="url(#grid)"/>
-  <!-- 水系 -->
-  <path d="M-50,300 C200,260 380,340 640,300 C900,260 1100,330 1440,290 L1440,900 L-50,900 Z" fill="#bcd8ef" opacity=".55"/>
-  <ellipse cx="1180" cy="640" rx="150" ry="90" fill="#bcd8ef" opacity=".45"/>
-  <ellipse cx="320" cy="760" rx="200" ry="70" fill="#bcd8ef" opacity=".4"/>
-  <!-- 高速 -->
-  <g stroke="#f7c877" stroke-width="3.5" fill="none" opacity=".9">
-    <path d="M60,80 C300,140 520,120 760,220 C980,310 1180,300 1420,260"/>
-    <path d="M100,860 C280,700 520,640 780,560 C1020,490 1240,470 1440,420"/>
-  </g>
-  <g stroke="#fff" stroke-width="1.8" fill="none">
-    <path d="M200,-20 C240,200 200,420 340,640 C420,770 460,860 480,940"/>
-    <path d="M-40,420 C260,380 560,430 860,380 C1100,340 1300,380 1480,350"/>
-    <path d="M700,-20 C720,180 680,400 760,620 C820,780 840,880 850,940"/>
-  </g>
-  <!-- 路名 -->
-  <g font-size="10" fill="#7d93ad" font-family="PingFang SC">
-    <text x="330" y="150">G2 京沪高速</text>
-    <text x="820" y="255">G60 沪昆高速</text>
-    <text x="120" y="415">S5 沪嘉高速</text>
-    <text x="1030" y="465">G15 沈海高速</text>
-    <text x="500" y="620">G50 沪渝高速</text>
-  </g>
-  <g font-size="11" font-family="PingFang SC" fill="#5a7a99">
-    <text x="620" y="180" font-size="13">浙江</text>
-    <text x="1150" y="650" font-size="13">千岛湖</text>
-    <text x="260" y="500" font-size="13">杭州湾</text>
-    <text x="900" y="700" font-size="13">宁波</text>
-  </g>
-</svg></div>
+<div id="themap"></div>
 
-<!-- 顶部通栏 -->
 <div id="topbar">
-  <div class="brand"><div class="mk">货</div>高德<em>货车导航</em><span style="font-size:11px;color:#98a6b8;font-weight:400;margin-left:2px">amap-truck-nav</span></div>
+  <div class="brand"><div class="mk">货</div>高德<em>货车导航</em><span style="font-size:11px;color:#98a6b8;font-weight:400">amap-truck-nav</span></div>
   <div class="tools">
     <button class="on" id="btnDir">路线</button>
     <button id="btnCode">&lt;/&gt; 代码</button>
-    <button id="btnQr">移动端</button>
-    <button onclick="toast('货车导航 · amap-truck-nav v0.1.0')">关于</button>
+    <button id="btnCam" class="on">📷 电子眼</button>
   </div>
-  <div class="user">🚛</div>
 </div>
 
-<!-- 左上路线面板 -->
 <section id="dirbox">
   <div class="dpanel">
     <div class="dhead">
       <div class="modes">
         <button class="mode on">🚛 货车</button>
-        <button class="mode" onclick="toast('本页只接货车引擎 (use_truck_engine=1)')">🚗 小车</button>
-        <button class="mode" onclick="toast('本页只接货车引擎 (use_truck_engine=1)')">🏍️ 骑行</button>
+        <button class="mode" onclick="toast('本页只接货车引擎')">🚗 小车</button>
       </div>
-      <button class="close" onclick="resetPanel()">✕</button>
+      <button class="close" onclick="window.__reset()">✕</button>
     </div>
     <div class="dbody" id="inputBody">
       <div class="irow">
         <div class="swap"><span>⬆</span><span>⬇</span></div>
-        <div class="dot-end"><span class="dot from"></span><span class="dot to"></span></div>
+        <div class="dots"><span class="dot from"></span><span class="dot to"></span></div>
         <div class="ipts">
-          <div class="ipt"><span class="tag f">起</span><input id="origin" placeholder="请输入起点 (经度,纬度)" value="116.481008,39.989625"><span class="pick">📍</span></div>
-          <div class="ipt"><span class="tag t">终</span><input id="dest" placeholder="请输入终点 (经度,纬度)" value="121.499718,31.239703"><span class="pick">📍</span></div>
+          <div class="ipt"><span class="tag f">起</span><input id="origin" placeholder="经度,纬度" value="116.481008,39.989625"></div>
+          <div class="ipt"><span class="tag t">终</span><input id="dest" placeholder="经度,纬度" value="121.499718,31.239703"></div>
         </div>
       </div>
 
-      <div class="viarow-wrap" style="margin-top:8px">
-        <div class="more-toggle" id="viaToggle">＋ 途经点 <span class="via-n" id="viaN"></span></div>
-        <div class="more" id="viaBox">
-          <div id="viaList"></div>
-          <button class="via-add" id="viaAdd">＋ 添加途经点 (≤16, 顺序途经)</button>
-        </div>
+      <div class="more-toggle" id="viaToggle">＋ 途经点 <span class="via-n" id="viaN"></span></div>
+      <div class="more" id="viaBox">
+        <div id="viaList"></div>
+        <button class="via-add" id="viaAdd">＋ 添加 (≤16, 顺序途经)</button>
       </div>
 
       <div class="truckrow" id="sizes">
@@ -259,63 +185,122 @@ input,select{font:inherit;color:var(--ink)}
       <div class="more-toggle" id="moreToggle">车辆参数 · 车牌 ▾</div>
       <div class="more" id="moreBox">
         <div class="g">
-          <div><label>车高 m</label><input id="height" type="number" step="0.1" placeholder="如 4.0"></div>
-          <div><label>车宽 m</label><input id="width" type="number" step="0.01" placeholder="如 2.55"></div>
-          <div><label>轴数</label><input id="axis" type="number" placeholder="如 6"></div>
+          <div><label>车高 m</label><input id="height" type="number" step="0.1" placeholder="4.0"></div>
+          <div><label>车宽 m</label><input id="width" type="number" step="0.01" placeholder="2.55"></div>
+          <div><label>轴数</label><input id="axis" type="number" placeholder="6"></div>
         </div>
         <div class="g" style="grid-template-columns:1fr 1fr">
-          <div><label>总重 t (核载+自重)</label><input id="load" type="number" step="0.1" placeholder="如 31"></div>
-          <div><label>核定载重 t</label><input id="weight" type="number" step="0.1" placeholder="如 20"></div>
+          <div><label>总重 t</label><input id="load" type="number" step="0.1" placeholder="31"></div>
+          <div><label>核定载重 t</label><input id="weight" type="number" step="0.1" placeholder="20"></div>
         </div>
         <div class="g2">
-          <div><label>车牌省份</label><input id="province" value="京" maxlength="1"></div>
-          <div><label>车牌号 (政策限行判定)</label><input id="pnumber" value="A12345"></div>
+          <div><label>车牌省</label><input id="province" value="京" maxlength="1"></div>
+          <div><label>车牌号</label><input id="pnumber" value="A12345"></div>
         </div>
       </div>
 
       <button class="gobtn" id="go">搜 索</button>
     </div>
   </div>
-  <div class="planlist" id="planList" style="display:none"></div>
+  <div class="planlist" id="planList"></div>
 </section>
 
-<!-- 右下地图控件 -->
-<div id="mapctrl">
-  <button onclick="toast('定位: 116.481008,39.989625')">◎</button>
-  <button onclick="toast('放大一级')">＋</button>
-  <button onclick="toast('缩小一级')">－</button>
-</div>
-<div id="scale">30 公里</div>
-<div id="copyright">amap-truck-nav demo · 数据来自高德地图 APP 货车导航通道(私有接口逆向, 仅供研究) · 坐标系 GCJ-02</div>
-
-<!-- 移动端二维码 -->
-<div id="dirqr">
-  <div class="t">移动端</div>
-  <div class="qr"></div>
-  <div class="s">npm i amap-truck-nav</div>
-  <button style="margin-top:6px;color:#8c98af;font-size:12px" onclick="this.parentElement.classList.remove('show')">✕ 关闭</button>
-</div>
-
-<!-- 代码抽屉 -->
 <div id="codebox">
   <div class="ch">
     <button class="on" data-t="js">JS / ESM</button>
     <button data-t="curl">cURL</button>
     <button data-t="resp">响应</button>
-    <button class="x" onclick="document.getElementById('codebox').classList.remove('show')">✕</button>
+    <button class="x" onclick="codebox.classList.remove('show')">✕</button>
   </div>
   <pre id="codeView"></pre>
 </div>
 
+<div id="copyright">amap-truck-nav demo · 高德APP货车导航通道(私有接口逆向, 仅供研究) · GCJ-02</div>
 <div id="toast"></div>
 
+<script src="https://webapi.amap.com/maps?v=2.0&key=2f282f369e388ef01bae260cbc35edce"></script>
 <script type="module">
-import { truckRoute, summary, camerasOf } from '../src/index.js';
+import { truckRoute, camerasOf } from '../src/index.js';
 import { setServer } from '../src/api.js';
 setServer(location.origin);
 const $ = (id) => document.getElementById(id);
+const codebox = $('codebox');
 const toast = (m) => { const t = $('toast'); t.textContent = m; t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2400); };
 
+/* ---- 高德地图 (JS API 2.0) ---- */
+const map = new AMap.Map('themap', {
+  viewMode: '2D', zoom: 5.4, center: [118.5, 33.5],
+  mapStyle: 'amap://styles/normal',
+});
+let routeOverlays = [];       // 当前路线
+let camMarkers = [];          // 电子眼
+let camVisible = true;
+const fitRoute = (pts) => map.setBounds(new AMap.Bounds([pts[0], pts[1]], [pts[2], pts[3]]));
+window.__map = map;
+
+function drawRoute(resp, planIdx) {
+  // 清旧
+  routeOverlays.forEach(o => map.remove(o)); routeOverlays = [];
+  camMarkers.forEach(m => map.remove(m)); camMarkers = [];
+
+  // 1. 起终点 + 途经点 marker
+  const paths = resp.data.route.paths;
+  const o = resp.data.route.origin.split(',').map(Number);
+  const d = resp.data.route.destination.split(',').map(Number);
+  const from = new AMap.Marker({ position: o, content: '<div style="width:14px;height:14px;border-radius:50%;background:#38a83a;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>', anchor:'center', zIndex:120 });
+  const to = new AMap.Marker({ position: d, content: '<div style="width:14px;height:14px;border-radius:50%;background:#e05252;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>', anchor:'center', zIndex:120 });
+  map.add([from, to]); routeOverlays.push(from, to);
+
+  // 2. 电子眼坐标 → 路线轨迹 (相邻>30km 视为服务区跳变, 截断分段)
+  const cams = camerasOf(resp);
+  const pts = cams.map(c => [c.lng, c.lat]);
+  const segs = [];
+  let cur = [];
+  for (let i = 0; i < pts.length; i++) {
+    if (cur.length && AMap.GeometryUtil.distance(cur[cur.length - 1], pts[i]) > 30000) { segs.push(cur); cur = []; }
+    cur.push(pts[i]);
+  }
+  if (cur.length) segs.push(cur);
+
+  const active = segs.map(seg => new AMap.Polyline({
+    path: seg, strokeColor: '#0f89f5', strokeWeight: 7, strokeOpacity: .95,
+    lineJoin: 'round', lineCap: 'round', showDir: true, zIndex: 50,
+  }));
+  const halo = segs.map(seg => new AMap.Polyline({
+    path: seg, strokeColor: '#ffffff', strokeWeight: 11, strokeOpacity: .9,
+    lineJoin: 'round', lineCap: 'round', zIndex: 49,
+  }));
+  map.add([...halo, ...active]);
+  routeOverlays.push(...halo, ...active);
+
+  // 3. 电子眼打点 (小相机 icon, 默认开)
+  cams.forEach(c => {
+    const m = new AMap.Marker({
+      position: [c.lng, c.lat],
+      content: `<div style="width:8px;height:8px;border-radius:50%;background:#ff9f1c;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,.3)"></div>`,
+      anchor: 'center', zIndex: 60, zooms: [8, 20],
+    });
+    camMarkers.push(m);
+  });
+  if (camVisible) map.add(camMarkers);
+
+  // 4. 视野适配 (含起终点)
+  const all = [o, d, ...pts];
+  const lngs = all.map(p => p[0]), lats = all.map(p => p[1]);
+  map.setBounds(new AMap.Bounds(
+    [Math.min(...lngs), Math.min(...lats)], [Math.max(...lngs), Math.max(...lats)]), false, [60, 60, 60, 60]);
+
+  toast(`路线已绘制: ${segs.length} 段 · ${camMarkers.length} 电子眼`);
+}
+window.__draw = drawRoute;
+
+$('btnCam').onclick = () => {
+  camVisible = !camVisible;
+  $('btnCam').classList.toggle('on', camVisible);
+  camMarkers.forEach(m => camVisible ? map.add(m) : map.remove(m));
+};
+
+/* ---- 表单 (同前) ---- */
 const STRATS = [[11,'高德推荐'],[1,'躲拥堵'],[3,'避收费'],[8,'高速优先'],[13,'距离优先'],[2,'不走高速'],[4,'躲堵+不走高速'],[5,'避费+不走高速'],[6,'躲堵+避费'],[7,'全避'],[9,'躲堵+高速'],[10,'无路况速度'],[12,'无路况不走高速']];
 const state = { size: 2, strategy: 11, resp: null, planIdx: 0 };
 
@@ -332,9 +317,8 @@ $('sizes').querySelectorAll('.tcard').forEach(c => c.onclick = () => {
 });
 $('moreToggle').onclick = () => $('moreBox').classList.toggle('show');
 $('viaToggle').onclick = () => $('viaBox').classList.toggle('show');
-$('btnCode').onclick = () => { $('codebox').classList.toggle('show'); genCode(); };
-$('btnQr').onclick = () => $('dirqr').classList.toggle('show');
-$('btnDir').onclick = () => { $('dirbox').style.display = ''; $('planList').style.display = 'none'; };
+$('btnCode').onclick = () => { codebox.classList.toggle('show'); genCode(); };
+$('btnDir').onclick = () => { $('inputBody').parentElement.style.display = ''; $('planList').style.display = 'none'; };
 
 function addVia(val = '') {
   if ($('viaList').children.length >= 16) { toast('最多 16 个途经点'); return; }
@@ -356,11 +340,10 @@ function collectOpts() {
   return o;
 }
 
-/* 代码抽屉 */
 let codeTab = 'js';
-document.querySelectorAll('#codebox .ch button[data-t]').forEach(t => t.onclick = () => {
+codebox.querySelectorAll('.ch button[data-t]').forEach(t => t.onclick = () => {
   codeTab = t.dataset.t;
-  document.querySelectorAll('#codebox .ch button[data-t]').forEach(x => x.classList.remove('on'));
+  codebox.querySelectorAll('.ch button[data-t]').forEach(x => x.classList.remove('on'));
   t.classList.add('on'); genCode();
 });
 const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;');
@@ -369,20 +352,20 @@ function genCode() {
   const viaStr = o.waypoints ? o.waypoints.map(w=>`[${w.join(', ')}]`).join(', ') : null;
   let html = '';
   if (codeTab === 'js') {
-    html = `<span class="c">// npm i amap-truck-nav</span>\n<span class="k">import</span> { truckRoute } <span class="k">from</span> <span class="s">'amap-truck-nav'</span>;\n<span class="k">const</span> resp = <span class="k">await</span> truckRoute({\n  origin: [<span class="n">${o.origin.join(', ')}</span>],\n  destination: [<span class="n">${o.destination.join(', ')}</span>],${viaStr?`\n  waypoints: [${viaStr}],`:''}\n  size: <span class="n">${o.size}</span>, strategy: <span class="n">${o.strategy}</span>,${o.height!==undefined?`\n  height: <span class="n">${o.height}</span>,`:''}${o.width!==undefined?` width: <span class="n">${o.width}</span>,`:''}${o.axis!==undefined?` axis: <span class="n">${o.axis}</span>,`:''}${o.load!==undefined?`\n  load: <span class="n">${o.load}</span>, weight: <span class="n">${o.weight??''}</span>,`:''}\n  province: <span class="s">'${o.province}'</span>, number: <span class="s">'${o.number}'</span>,\n});`;
+    html = `<span class="c">// npm i amap-truck-nav</span>\n<span class="k">import</span> { truckRoute } <span class="k">from</span> <span class="s">'amap-truck-nav'</span>;\n<span class="k">const</span> resp = <span class="k">await</span> truckRoute({\n  origin: [<span class="n">${o.origin.join(', ')}</span>],\n  destination: [<span class="n">${o.destination.join(', ')}</span>],${viaStr?`\n  waypoints: [${viaStr}],`:''}\n  size: <span class="n">${o.size}</span>, strategy: <span class="n">${o.strategy}</span>,\n  province: <span class="s">'${o.province}'</span>, number: <span class="s">'${o.number}'</span>,\n});`;
   } else if (codeTab === 'curl') {
     const p = new URLSearchParams({ origin: o.origin.join(','), destination: o.destination.join(','), size: o.size, strategy: o.strategy });
     if (o.waypoints) p.set('waypoints', o.waypoints.map(w=>w.join(',')).join(';'));
     for (const k of ['height','width','load','weight','axis']) if (o[k]!==undefined) p.set(k, o[k]);
-    html = `<span class="c"># 官方 v4/direction/truck 同参, 无需 key</span>\ncurl <span class="s">'${location.origin}/v4/direction/truck?${esc(p.toString())}'</span>`;
+    html = `curl <span class="s">'${location.origin}/v4/direction/truck?${esc(p.toString())}'</span>`;
   } else {
-    const s = state.resp ? summary(state.resp) : { distance: 1221617, duration: 59420, tolls: 650, steps: 42, alternatives: 2 };
-    html = `<span class="k">"data"</span>: { <span class="k">"route"</span>: { <span class="k">"paths"</span>: [{\n  <span class="k">"distance"</span>: <span class="n">${s.distance}</span>, <span class="k">"duration"</span>: <span class="n">${s.duration}</span>, <span class="k">"tolls"</span>: <span class="n">${s.tolls}</span>,\n  <span class="k">"steps"</span>: [ { <span class="k">"instruction"</span>: <span class="s">"沿阜通东大街向西北行驶102米左转"</span>, <span class="k">"road"</span>: <span class="s">"阜通东大街"</span>, <span class="k">"distance"</span>: <span class="n">102</span>,\n    <span class="k">"cameras"</span>: [{ <span class="k">"x"</span>: <span class="s">"116.7647"</span>, <span class="k">"y"</span>: <span class="s">"39.9895"</span> }] } ] }] }`;
+    const s = state.resp ? {d:0} : {d:0};
+    const p0 = state.resp ? state.resp.data.route.paths[0] : { distance: 1221617, duration: 59420, tolls: 650, steps: [] };
+    html = `<span class="k">"paths"</span>: [{\n  <span class="k">"distance"</span>: <span class="n">${p0.distance}</span>, <span class="k">"duration"</span>: <span class="n">${p0.duration}</span>, <span class="k">"tolls"</span>: <span class="n">${p0.tolls??0}</span>,\n  <span class="k">"steps"</span>: [{ <span class="k">"instruction"</span>: <span class="s">"沿…行驶41米右转"</span>, <span class="k">"road"</span>: <span class="s">"无名道路"</span>, <span class="k">"distance"</span>: <span class="n">41</span>,\n    <span class="k">"cameras"</span>: [{ <span class="k">"x"</span>: <span class="s">"116.7647"</span>, <span class="k">"y"</span>: <span class="s">"39.9895"</span> }] }]\n}]`;
   }
   $('codeView').innerHTML = html;
 }
 
-/* 搜索 */
 let running = false;
 const fmtKm = m => (m/1000).toFixed(1).replace(/\.0$/,'')+'公里';
 const fmtDur = s => { const h=Math.floor(s/3600),m=Math.round(s%3600/60); return h?`${h}小时${m}分`:`${m}分钟`; };
@@ -393,28 +376,28 @@ $('go').onclick = async () => {
   try {
     const resp = await truckRoute(o);
     state.resp = resp; state.planIdx = 0;
-    renderPlans(); genCode();
-    $('codebox').classList.add('show');
+    renderPlans(); drawRoute(resp, 0); genCode();
+    $('inputBody').parentElement.style.display = 'none';
+    $('planList').style.display = '';
   } catch (e) { toast('失败: ' + e.message); }
   finally { running = false; $('go').disabled = false; $('go').textContent = '搜 索'; }
 };
 
 function renderPlans() {
   const paths = state.resp.data.route.paths;
-  const s = summary(state.resp);
+  const cams = camerasOf(state.resp);
   const p0 = paths[0];
-  let h = `<div class="plan-h"><b>货车方案</b><span style="font-size:11px;color:#8c98af;margin-left:8px">${paths.length}条 · 含实时路况</span><button class="back" onclick="window.__reset()">修改条件</button></div>`;
+  let h = `<div class="plan-h"><b>货车方案</b><span style="font-size:11px;color:#8c98af;margin-left:8px">${paths.length}条</span><button class="back" onclick="__reset()">修改条件</button></div>`;
   h += `<div class="plansum">
     <div class="psum"><div class="v">${fmtKm(p0.distance)}</div><div class="k">距离</div></div>
     <div class="psum"><div class="v">${fmtDur(p0.duration)}</div><div class="k">耗时</div></div>
     <div class="psum"><div class="v">${p0.tolls||0}<small> 元</small></div><div class="k">过路费</div></div>
-    <div class="psum"><div class="v">${camerasOf(state.resp).length}</div><div class="k">电子眼</div></div>
+    <div class="psum"><div class="v">${cams.length}</div><div class="k">电子眼</div></div>
   </div>`;
   paths.forEach((p, i) => {
-    const lights = state.resp.data.route.paths === paths && i === 0 && state.resp2;
     h += `<div class="plan${i===state.planIdx?' on':''}" data-i="${i}">
       <div class="tt"><span class="n">方案${i+1}</span><span class="d">${fmtKm(p.distance)}</span><span class="t">${fmtDur(p.duration)}</span>${p.tolls?`<span class="fee">¥${p.tolls}</span>`:''}</div>
-      <div class="meta"><span>${p.steps.length}步转向</span></div>
+      <div class="meta"><span>${p.steps.length}步</span></div>
       <div class="detail">${p.steps.map((st,j)=>`<div class="dstep"><span class="no">${j+1}</span><span>${st.instruction||''} ${st.road?`<span class="rd">· ${st.road}</span>`:''}${st.cameras&&st.cameras.length?`<span class="cam"> 📷${st.cameras.length}</span>`:''}</span></div>`).join('')}</div>
     </div>`;
   });
@@ -426,8 +409,11 @@ function renderPlans() {
     el.classList.add('on');
   });
 }
-window.__reset = () => { $('planList').style.display = 'none'; };
-function resetPanel() { window.__reset(); $('codebox').classList.remove('show'); }
+window.__reset = () => {
+  $('inputBody').parentElement.style.display = '';
+  $('planList').style.display = 'none';
+  codebox.classList.remove('show');
+};
 </script>
 </body>
 </html>
