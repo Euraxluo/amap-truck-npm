@@ -225,7 +225,7 @@ if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catc
 <div id="toast"></div>
 
 <script type="module">
-import { truckRoute, camerasOf } from '../src/index.js';
+import { truckRoute } from '../src/index.js';
 import { setServer } from '../src/api.js';
 setServer(location.origin);
 const $ = (id) => document.getElementById(id);
@@ -245,29 +245,27 @@ const map = (() => {
   };
   const toScreen = (lng, lat) => { const [wx, wy] = px(lng, lat); return [wx - st.origin[0], wy - st.origin[1]]; };
   let overlays = { segs: [], cams: [], pts: [], via: [] };
+  let camOn = true;                          // 电子眼显隐 (顶栏开关)
   const drawOvl = () => {
     const svg = document.getElementById('ovl');
     if (!st.W) return;
     svg.setAttribute('viewBox', `0 0 ${st.W} ${st.H}`);
     svg.setAttribute('width', st.W); svg.setAttribute('height', st.H);
     let h = '';
-    for (const seg of overlays.segs) {
-      const d = seg.map((p, i) => (i ? 'L' : 'M') + toScreen(p[0], p[1]).map(v => v.toFixed(1)).join(',')).join('');
-      h += `<path d="${d}" fill="none" stroke="#fff" stroke-width="8" stroke-linejoin="round" stroke-linecap="round" opacity=".9"/>`;
-      h += `<path d="${d}" fill="none" stroke="#0f89f5" stroke-width="5.5" stroke-linejoin="round" stroke-linecap="round"/>`;
-    }
-    if (st.zoom >= 8) for (const c of overlays.cams) {
+    // 电子眼散点 (数据源无序, 只画点不连线 — 连线会产生横杠, 已由审查证实)
+    if (camOn) for (const c of overlays.cams) {
       const [x, y] = toScreen(c[0], c[1]);
-      h += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4" fill="#ff9f1c" stroke="#fff" stroke-width="1.5"/>`;
+      h += `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${st.zoom >= 8 ? 4 : 2.5}" fill="#ff9f1c" fill-opacity="${st.zoom >= 8 ? 1 : .75}" stroke="#fff" stroke-width="1.5"/>`;
     }
-    const pin = (p, color) => {
+    const pin = (p, color, r = 7) => {
       const [x, y] = toScreen(p[0], p[1]);
-      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7" fill="${color}" stroke="#fff" stroke-width="3"/>`;
+      return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r}" fill="${color}" stroke="#fff" stroke-width="3"/>`;
     };
     if (overlays.pts.length >= 2) { h += pin(overlays.pts[0], '#38a83a'); h += pin(overlays.pts[1], '#e05252'); }
     for (const v of overlays.via) h += pin(v, '#0f89f5');
     svg.innerHTML = h;
   };
+  const setCam = (on) => { camOn = on; drawOvl(); };
   const render = () => {
     const W = innerWidth, H = innerHeight;
     const [cxp, cyp] = px(st.cx, st.cy);
@@ -292,12 +290,13 @@ const map = (() => {
       const a = px(bbox[0], bbox[3]), b = px(bbox[2], bbox[1]);
       if (b[0] - a[0] < innerWidth * .8 && a[1] - b[1] < innerHeight * .8) break;
     }
-    st.zoom = z;
+    st.zoom = Math.max(4, z);
     st.cx = (bbox[0] + bbox[2]) / 2; st.cy = (bbox[1] + bbox[3]) / 2;
     render();
   };
   let drag = null;
-  addEventListener('mousedown', e => { drag = { x: e.clientX, y: e.clientY, origin: [...st.origin] }; });
+  const mapEl = document.getElementById('themap');
+  mapEl.addEventListener('mousedown', e => { drag = { x: e.clientX, y: e.clientY, origin: [...st.origin] }; e.preventDefault(); });
   addEventListener('mousemove', e => {
     if (!drag) return;
     const dx = (e.clientX - drag.x), dy = (e.clientY - drag.y);
@@ -309,45 +308,40 @@ const map = (() => {
     if (ycy > -1.55 && ycy < 1.55) st.cy = Math.atan(Math.sinh(ycy)) * 180 / Math.PI;
     render();
   });
-  addEventListener('mouseup', () => drag = null);
+  const endDrag = () => { drag = null; };
+  addEventListener('mouseup', endDrag);
+  addEventListener('blur', endDrag);
   addEventListener('wheel', e => {
     e.preventDefault();
     const old = st.zoom;
     st.zoom = Math.max(4, Math.min(18, st.zoom + (e.deltaY < 0 ? 1 : -1)));
     if (st.zoom !== old) render();
   }, { passive: false });
+  addEventListener('resize', render);
   render();
-  return { getZoom: () => st.zoom, setOverlays, fit, st, render };
+  return { getZoom: () => st.zoom, setOverlays, setCam, fit, st, render };
 })();
 window.__map = map;
 
 function drawRoute(resp, planIdx) {
   const o = resp.data.route.origin.split(',').map(Number);
   const d = resp.data.route.destination.split(',').map(Number);
-  const cams = camerasOf(resp);
-  const pts = cams.map(c => [c.lng, c.lat]);
-  // 相邻>30km 视为跳变, 截断分段
-  const segs = []; let cur = [];
-  const distM = (a, b) => { const R = 6371000, r = d2r => d2r * Math.PI / 180;
-    const dLat = r(b[1] - a[1]), dLng = r(b[0] - a[0]) * Math.cos(r((a[1] + b[1]) / 2));
-    return Math.hypot(dLat, dLng) * R; };
-  for (let i = 0; i < pts.length; i++) {
-    if (cur.length && distM(cur[cur.length - 1], pts[i]) > 30000) { segs.push(cur); cur = []; }
-    cur.push(pts[i]);
-  }
-  if (cur.length) segs.push(cur);
-
-  map.setOverlays({ segs, cams: pts, pts: [o, d], via: [] });
-  map.fit([o, d, ...pts]);
-  toast(`路线已绘制: ${segs.length} 段 · ${pts.length} 电子眼`);
+  // 电子眼只画散点 (审查证实: 数据源乱序, 连线必出横杠)
+  // planIdx 生效: 只取当前方案的电子眼, 不跨方案聚合
+  const cams = (resp.data.route.paths[planIdx]?.steps ?? [])
+    .flatMap(s => (s.cameras ?? []).map(c => [ +c.x, +c.y ]));
+  map.setOverlays({ segs: [], cams, pts: [o, d], via: [] });
+  map.fit([o, d, ...cams]);
+  toast(`已定位: 起点→终点 · ${cams.length} 电子眼点位 (散点)`);
 }
 window.__draw = drawRoute;
 
+let camOn = true;
 $('btnCam').onclick = () => {
-  camZoomOn = !camZoomOn;
-  $('btnCam').classList.toggle('on', camZoomOn);
+  camOn = !camOn;
+  $('btnCam').classList.toggle('on', camOn);
+  map.setCam(camOn);
 };
-let camZoomOn = true;
 
 /* ---- 表单 (同前) ---- */
 const STRATS = [[11,'高德推荐'],[1,'躲拥堵'],[3,'避收费'],[8,'高速优先'],[13,'距离优先'],[2,'不走高速'],[4,'躲堵+不走高速'],[5,'避费+不走高速'],[6,'躲堵+避费'],[7,'全避'],[9,'躲堵+高速'],[10,'无路况速度'],[12,'无路况不走高速']];
@@ -434,14 +428,13 @@ $('go').onclick = async () => {
 
 function renderPlans() {
   const paths = state.resp.data.route.paths;
-  const cams = camerasOf(state.resp);
   const p0 = paths[0];
   let h = `<div class="plan-h"><b>货车方案</b><span style="font-size:11px;color:#8c98af;margin-left:8px">${paths.length}条</span><button class="back" onclick="__reset()">修改条件</button></div>`;
   h += `<div class="plansum">
     <div class="psum"><div class="v">${fmtKm(p0.distance)}</div><div class="k">距离</div></div>
     <div class="psum"><div class="v">${fmtDur(p0.duration)}</div><div class="k">耗时</div></div>
     <div class="psum"><div class="v">${p0.tolls||0}<small> 元</small></div><div class="k">过路费</div></div>
-    <div class="psum"><div class="v">${cams.length}</div><div class="k">电子眼</div></div>
+    <div class="psum"><div class="v">${p0.steps.reduce((n,s)=>n+(s.cameras?.length||0),0)}</div><div class="k">电子眼</div></div>
   </div>`;
   paths.forEach((p, i) => {
     h += `<div class="plan${i===state.planIdx?' on':''}" data-i="${i}">
@@ -456,6 +449,7 @@ function renderPlans() {
     state.planIdx = +el.dataset.i;
     $('planList').querySelectorAll('.plan').forEach(x => x.classList.remove('on'));
     el.classList.add('on');
+    drawRoute(state.resp, state.planIdx);   // 切方案 → 地图同步
   });
 }
 window.__reset = () => {
